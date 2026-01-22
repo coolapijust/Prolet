@@ -78,10 +78,7 @@ def get_github_repo():
 def get_source_dir():
     config = load_config()
     source_dir = config.get('source_dir', '')
-    if not source_dir:
-        log_info(f'使用默认源目录: txt')
-        return 'txt'
-    log_info(f'从配置文件读取源目录: {source_dir}')
+    log_info(f'从配置文件读取源目录: {source_dir if source_dir else "无（扫描整个仓库）"}')
     return source_dir
 
 def get_token():

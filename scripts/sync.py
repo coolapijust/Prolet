@@ -55,7 +55,7 @@ def load_config():
         return {}
 
 def get_source_dir():
-    return load_config().get('source_dir', 'txt')
+    return load_config().get('source_dir', '')
 
 def get_docs_dir():
     root_dir = Path(__file__).parent.parent
