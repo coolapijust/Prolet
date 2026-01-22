@@ -93,6 +93,12 @@ def get_token():
     return token
 
 def get_branch():
+    config = load_config()
+    branch = config.get('target_branch', '')
+    if branch:
+        log_info(f'从配置文件读取目标分支: {branch}')
+        return branch
+    
     branch = os.environ.get('GITHUB_REF', 'refs/heads/master').replace('refs/heads/', '')
     if not branch:
         branch = 'master'

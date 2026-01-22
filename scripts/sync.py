@@ -33,12 +33,19 @@ def log_error(msg, module='Sync'):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f'[{module}][{timestamp}] [ERROR] {msg}')
 
+_config_cache = None
+
 def load_config():
+    global _config_cache
+    if _config_cache is not None:
+        return _config_cache
+    
     if CONFIG_FILE.exists():
         try:
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                 config = json.load(f)
             log_info(f'配置文件加载成功: {CONFIG_FILE}')
+            _config_cache = config
             return config
         except (json.JSONDecodeError, IOError) as e:
             log_error(f'配置文件加载错误: {e}')
