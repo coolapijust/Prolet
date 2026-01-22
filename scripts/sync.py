@@ -18,6 +18,11 @@ ALLOWED_EXTENSIONS = {'.txt', '.md', '.docx'}
 
 CONFIG_FILE = Path(__file__).parent.parent / 'reader' / 'config.json'
 
+if os.environ.get('GITHUB_ACTIONS') == 'true':
+    current_dir = Path.cwd()
+    if 'tools' in str(current_dir).lower():
+        CONFIG_FILE = current_dir / 'reader' / 'config.json'
+
 def log_info(msg, module='Sync'):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f'[{module}][{timestamp}] {msg}')

@@ -14,6 +14,13 @@ from pathlib import Path
 from datetime import datetime
 
 WORKSPACE = Path(os.environ.get('GITHUB_WORKSPACE', '.'))
+
+if os.environ.get('GITHUB_ACTIONS') == 'true':
+    current_dir = Path.cwd()
+    if 'tools' in str(current_dir).lower():
+        WORKSPACE = current_dir
+        log_info(f'GitHub Actions 环境，调整工作目录: {WORKSPACE}')
+
 ALLOWED_EXTENSIONS = {'.txt', '.md', '.docx'}
 
 USER_AGENT = 'text-sync-tool/1.0'
@@ -30,9 +37,13 @@ def log_error(msg):
 
 def load_config():
     config_path = WORKSPACE / 'reader' / 'config.json'
+    
     if not config_path.exists():
         log_error(f'配置文件不存在: {config_path}')
+        log_error(f'当前工作目录: {WORKSPACE}')
+        log_error(f'请检查配置文件是否正确上传到仓库')
         return {}
+    
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
             config = json.load(f)
@@ -266,10 +277,25 @@ def main():
     
     result = run_cmd(f'git ls-remote https://github.com/{REPO}.git {BRANCH}')
     if not result or result.returncode != 0:
-        log_error('无法获取仓库信息，退出')
+        log_error(f'无法获取仓库信息: {REPO}/{BRANCH}')
+        log_error(f'返回码: {result.returncode if result else "None"}')
+        log_error(f'错误输出: {result.stderr if result else "None"}')
+        log_error(f'请检查：')
+        log_error(f'1. 仓库名称是否正确: {REPO}')
+        log_error(f'2. 分支名称是否正确: {BRANCH}')
+        log_error(f'3. 仓库是否为公开仓库')
         return
     
-    commit_sha = result.stdout.split()[0]
+    if not result.stdout or not result.stdout.strip():
+        log_error(f'git ls-remote 输出为空')
+        return
+    
+    lines = result.stdout.strip().split('\n')
+    if not lines or not lines[0]:
+        log_error(f'无法解析 git ls-remote 输出')
+        return
+    
+    commit_sha = lines[0].split()[0]
     log_info(f'最新 Commit: {commit_sha}')
     
     files = get_tree_files_recursive(commit_sha, REPO, TOKEN)
