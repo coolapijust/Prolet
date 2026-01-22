@@ -61,7 +61,7 @@ jobs:
       - name: Install Dependencies
         run: |
           echo "[Sync][$(date +%Y-%m-%d\ %H:%M:%S)] 安装依赖..."
-          pip install -q python-docx
+          pip install -q python-docx mammoth
           echo "[Sync][$(date +%Y-%m-%d\ %H:%M:%S)] 依赖安装完成"
 
       - name: Download TXT Files via API
