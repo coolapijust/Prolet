@@ -42,11 +42,18 @@ jobs:
           echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] ==========================================="
           echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] 列出可用的 artifact"
           echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] ==========================================="
-          gh run view ${{ github.event.workflow_run.id }} --log
+          echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] Workflow Run ID: ${{ github.event.workflow_run.id }}"
+          echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] 仓库: ${{ github.repository }}"
+          echo ""
+          
+          echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] 列出所有 artifacts:"
+          gh run view ${{ github.event.workflow_run.id }} \
+            --repo ${{ github.repository }} \
+            --json artifacts \
+            --jq '.artifacts[] | {name: .name, size: .size, expired: .expired}'
+          
           echo ""
           echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] 尝试下载 reader artifact..."
-          gh run view ${{ github.event.workflow_run.id }} --log-failed || true
-          gh run view ${{ github.event.workflow_run.id }} --log || true
         env:
           GH_TOKEN: ${{ github.token }}
 
