@@ -9,6 +9,10 @@
   "enable_search": true,
   "enable_back_to_top": true,
   "exclude_patterns": [],
-  "exclude_files": [],
+  "exclude_files": [
+    "readme.md",
+    "README.md",
+    "README.MD"
+  ],
   "home_page": null
 }

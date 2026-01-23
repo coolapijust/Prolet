@@ -80,17 +80,30 @@ def _clean_html_content(html_result: str) -> str:
     import re
     
     # 1. 剔除分页标识 (针对 Word/TXT)
-    # 匹配类似于 ==========第1页========== 或 =============第 12 页=============
-    page_marker_pattern = re.compile(r'={3,}.*?第\s?\d+\s?页.*?={3,}', re.IGNORECASE)
-    html_result = page_marker_pattern.sub('', html_result)
+    # 匹配多种形式的分页标识:
+    # - ==========第1页==========
+    # - ------第 12 页------
+    # - -------- 第1页 --------
+    # - [P.1], [P1], (第1页) 等
+    page_patterns = [
+        r'[=\-]{3,}.*?第\s*\d+\s*页.*?[=\-]{3,}',      # ===第N页=== 或 ---第N页---
+        r'\[P\.?\s?\d+\]',                              # [P.1] 或 [P1]
+        r'\(第\s?\d+\s?页\)',                           # (第1页)
+        r'<p>\s*-{5,}\s*</p>',                          # 纯分隔线段落
+    ]
+    for pattern in page_patterns:
+        html_result = re.sub(pattern, '', html_result, flags=re.IGNORECASE)
     
     # 2. 清理冗余的空段落 (mammoth 经常产生这种标签)
     # 匹配 <p></p>, <p> </p>, <p>&nbsp;</p>, <p><br /></p> 等
     empty_p_pattern = re.compile(r'<p>\s*(?:&nbsp;|<br\s*/?>)?\s*</p>', re.IGNORECASE)
     html_result = empty_p_pattern.sub('', html_result)
     
-    # 3. 连续的 <br> 合并 (可选，视需要而定)
-    # html_result = re.sub(r'(<br\s*/?>\s*){3,}', '<br><br>', html_result)
+    # 3. 压缩连续的空行 (最多保留两个 <br>)
+    html_result = re.sub(r'(<br\s*/?>\s*){3,}', '<br><br>', html_result)
+    
+    # 4. 清理 TOC 条目（保留为隐藏，可通过 CSS 控制显示）
+    # 这里不删除 TOC，而是让 CSS 来控制隐藏
     
     return html_result.strip()
 

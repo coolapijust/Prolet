@@ -296,6 +296,40 @@ body.dark .docx-wrapper {
   opacity: 0.8;
 }
 
+/* 目录条目：默认隐藏，可通过开关展示 */
+.toc-entry {
+  display: none;
+  /* 默认隐藏目录，减少干扰 */
+}
+
+/* 脚注样式 */
+p.footnote {
+  font-size: 0.85em;
+  color: #666;
+  padding-left: 1em;
+  border-left: 2px solid #ddd;
+  margin: 1em 0;
+}
+
+body.dark p.footnote {
+  color: #8b949e;
+  border-color: #30363d;
+}
+
+/* 题注样式 */
+p.caption {
+  font-size: 0.9em;
+  color: #666;
+  font-style: italic;
+  text-align: center;
+  margin-top: -10px;
+  margin-bottom: 20px;
+}
+
+body.dark p.caption {
+  color: #8b949e;
+}
+
 .sidebar.collapsed+.content {
   margin-left: 0;
   max-width: 1200px;
