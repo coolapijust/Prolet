@@ -152,8 +152,17 @@ def run_build(config: Config, output_dir: Optional[Path] = None) -> None:
         html_path = docs_dir / rel_path.with_suffix(".html")
         html_path.parent.mkdir(parents=True, exist_ok=True)
         
+        # 图片资源目录：docs/path/to/file_stem_assets/
+        # 注意：使用文件名+assets作为资源目录名，避免与其他文件夹冲突
+        assets_dir_name = f"{local_path.stem}_assets"
+        assets_rel_path = rel_path.parent / assets_dir_name
+        assets_dir = docs_dir / assets_rel_path
+        
+        # HTML 中引用的前缀 (相对路径)
+        assets_prefix = assets_dir_name
+
         try:
-            html_content = convert_file(local_path)
+            html_content = convert_file(local_path, assets_dir, assets_prefix)
             html_path.write_text(html_content, encoding="utf-8")
             return True, str(rel_path)
         except Exception as e:

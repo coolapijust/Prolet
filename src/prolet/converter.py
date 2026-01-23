@@ -12,12 +12,44 @@ import html
 
 def convert_txt(content: str) -> str:
     """
-    将纯文本转换为 HTML
-
-    保留换行和空格，使用 <pre> 包装
+    将纯文本转换为 HTML (智能段落化)
+    
+    规则：
+    1. 自动识别双换行符 (\n\n) 为段落分隔。
+    2. 处理首行缩进。
+    3. 识别 URL 并转换为链接。
     """
-    escaped = html.escape(content)
-    return f'<pre class="txt-content">{escaped}</pre>'
+    import re
+    
+    # 1. 预处理：标准化换行并去除 BOM
+    content = content.replace('\r\n', '\n').replace('\r', '\n')
+    
+    # 2. 分段
+    paragraphs = content.split('\n\n')
+    html_parts = []
+    
+    link_pattern = re.compile(r'(https?://\S+)')
+    
+    for p in paragraphs:
+        p = p.strip()
+        if not p:
+            continue
+            
+        # 3. 处理段落内的单换行
+        # 如果看起来像包含强制换行的长文本，这里可以将 \n 替换为 <br> 或者合并
+        # 为了保持原文意图，我们保留段内换行作为 <br>
+        p_html = html.escape(p).replace('\n', '<br>')
+        
+        # 4. 自动链接
+        p_html = link_pattern.sub(r'<a href="\1" target="_blank">\1</a>', p_html)
+        
+        html_parts.append(f'<p>{p_html}</p>')
+    
+    # 如果段落很少（可能是一整块代码或诗歌），或者包含特殊缩进，退回 <pre> 可能会更好
+    # 但作为通用阅读器，<p> 更适合大多数情况
+    
+    joined_html = '\n'.join(html_parts)
+    return f'<div class="txt-wrapper content-prose">{joined_html}</div>'
 
 
 def convert_markdown(content: str) -> str:
@@ -43,45 +75,145 @@ def convert_markdown(content: str) -> str:
     return md.render(content)
 
 
-def convert_docx(file_path: Path) -> str:
+def convert_docx(file_path: Path, assets_dir: Optional[Path] = None, assets_prefix: str = "") -> str:
     """
     将 DOCX 文件转换为 HTML
 
-    使用 mammoth 库进行转换
+    使用 mammoth 库进行转换，带有自定义样式映射和图片处理
     """
     try:
         import mammoth
     except ImportError:
         return '<p class="error">无法转换 DOCX 文件：mammoth 库未安装</p>'
 
+    # 自定义样式映射
+    style_map = """
+    p[style-name='Heading 1'] => h1:fresh
+    p[style-name='Heading 2'] => h2:fresh
+    p[style-name='Heading 3'] => h3:fresh
+    p[style-name='Heading 4'] => h4:fresh
+    p[style-name='Title'] => h1.title:fresh
+    p[style-name='Subtitle'] => p.subtitle:fresh
+    p[style-name='Quote'] => blockquote:fresh
+    r[style-name='Strong'] => strong
+    
+    # 中文样式映射
+    p[style-name='标题 1'] => h1:fresh
+    p[style-name='标题 2'] => h2:fresh
+    p[style-name='标题 3'] => h3:fresh
+    p[style-name='标题 4'] => h4:fresh
+    p[style-name='标题 5'] => h5:fresh
+    p[style-name='标题 #1'] => h1:fresh
+    p[style-name='标题 #2'] => h2:fresh
+    p[style-name='标题 #3'] => h3:fresh
+    p[style-name='标题 #4'] => h4:fresh
+    
+    # 结构样式
+    p[style-name='目录'] => div.toc-entry:fresh
+    p[style-name^='TOC'] => div.toc-entry:fresh
+    p[style-name='表格标题'] => p.caption:fresh
+    p[style-name='脚注'] => p.footnote:fresh
+    p[style-name='页眉'] => p.header:fresh
+    p[style-name='页脚'] => p.footer:fresh
+    """
+
+    # 图片处理函数
+    convert_image = None
+    if assets_dir:
+        def image_handler(image):
+            # 生成唯一文件名
+            import hashlib
+            with image.open() as image_bytes:
+                content = image_bytes.read()
+                ext = image.content_type.split("/")[-1]
+                if ext == "jpeg": ext = "jpg"
+                
+                # 使用内容哈希作为文件名
+                md5 = hashlib.md5(content).hexdigest()
+                filename = f"{md5}.{ext}"
+                
+                # 保存文件
+                target_file = assets_dir / filename
+                if not target_file.exists():
+                    target_file.parent.mkdir(parents=True, exist_ok=True)
+                    target_file.write_bytes(content)
+                
+                # 返回 img 标签属性
+                return {
+                    "src": f"{assets_prefix}/{filename}",
+                    "loading": "lazy",
+                    "class": "docx-image"
+                }
+        convert_image = mammoth.images.inline(image_handler)
+
     try:
         with open(file_path, "rb") as f:
-            result = mammoth.convert_to_html(f)
+            # 如果配置了图片处理，传给 mammoth
+            kwargs = {"style_map": style_map}
+            if convert_image:
+                kwargs["convert_image"] = convert_image
+                
+            result = mammoth.convert_to_html(f, **kwargs)
+            
             if result.messages:
+                # 过滤警告，忽略常见的样式丢失警告
+                ignore_patterns = [
+                    "Unrecognised paragraph style: 正文文本",
+                    "Unrecognised paragraph style: Body Text",
+                    "Unrecognised run style",
+                    "An unrecognised element was ignored: w:cr"
+                ]
                 for msg in result.messages:
-                    print(f"  mammoth: {msg}")
-            return result.value
+                    msg_str = str(msg.message)
+                    if any(p in msg_str for p in ignore_patterns):
+                        continue
+                    print(f"  mammoth warning: {msg_str}")
+            
+            return f'<div class="docx-wrapper">{result.value}</div>'
     except Exception as e:
         escaped = html.escape(str(e))
         return f'<p class="error">DOCX 转换失败: {escaped}</p>'
 
 
-def convert_file(file_path: Path) -> str:
+def _inject_metadata(html_content: str, text_content: str) -> str:
+    """注入字数统计和阅读时间"""
+    # 简单估算：中文字符 + 英文单词
+    import re
+    # 移除 HTML 标签获取纯文本用于统计
+    clean_text = re.sub(r'<[^>]+>', '', text_content).strip()
+    if not clean_text:
+        return html_content
+        
+    char_count = len(clean_text)
+    # 按 400 字/分钟估算
+    read_time = max(1, round(char_count / 400))
+    
+    meta_html = (
+        f'<div class="doc-metadata" style="color: #666; font-size: 0.9em; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #eee;">'
+        f'<span>字数: {char_count}</span> &nbsp; '
+        f'<span>预计阅读: {read_time} 分钟</span>'
+        f'</div>'
+    )
+    return meta_html + html_content
+
+
+def convert_file(file_path: Path, assets_dir: Optional[Path] = None, assets_prefix: str = "") -> str:
     """
     根据文件类型自动选择转换器
 
     Args:
         file_path: 源文件路径
+        assets_dir: 资源保存目录 (用于 DOCX 图片)
+        assets_prefix: HTML 中引用的资源前缀
 
     Returns:
         HTML 字符串
     """
     ext = file_path.suffix.lower()
-
-    if ext == ".docx":
-        return convert_docx(file_path)
+    html_result = ""
 
     # 对于文本文件，先读取内容
+    content = ""
     try:
         # 尝试常见编码
         for encoding in ["utf-8", "gbk", "gb2312", "utf-16"]:
@@ -96,13 +228,23 @@ def convert_file(file_path: Path) -> str:
     except Exception as e:
         return f'<p class="error">文件读取失败: {html.escape(str(e))}</p>'
 
+    if ext == ".docx":
+        # DOCX 特殊处理，通过 mammoth 转换
+        # mammoth 返回的 HTML 已经是结果，但也需要注入 metadata
+        # 由于 mammoth 不直接返回纯文本，我们需要从转换后的 HTML 中提取（略显粗糙但有效）
+        html_result = convert_docx(file_path, assets_dir, assets_prefix)
+        # 再次利用 _inject_metadata，传入 html_result 作为 text_content (会被用于统计)
+        return _inject_metadata(html_result, html_result)
+
     if ext == ".md":
-        return convert_markdown(content)
+        html_result = convert_markdown(content)
     elif ext == ".txt":
-        return convert_txt(content)
+        html_result = convert_txt(content)
     else:
         # 未知类型，作为纯文本处理
-        return convert_txt(content)
+        html_result = convert_txt(content)
+        
+    return _inject_metadata(html_result, content)
 
 
 def generate_html_page(title: str, content_html: str, config: Optional[dict] = None) -> str:
