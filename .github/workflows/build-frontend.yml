@@ -56,6 +56,40 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Verify Artifact Content
+        if: ${{ github.event_name == 'workflow_run' || github.event.inputs.redeploy_only == 'false' }}
+        run: |
+          echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] ==========================================="
+          echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] 验证 artifact 内容"
+          echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] ==========================================="
+          echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] 根目录内容:"
+          ls -la
+          echo ""
+          if [ -d txt ]; then
+            echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] txt 目录存在"
+            echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] txt 目录内容:"
+            ls -la txt/
+            echo ""
+            echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] txt 目录大小:"
+            du -sh txt/
+          else
+            echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] txt 目录不存在"
+          fi
+          echo ""
+          if [ -d reader ]; then
+            echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] reader 目录存在"
+            echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] reader 目录内容:"
+            ls -la reader/
+            echo ""
+            if [ -d reader/docs ]; then
+              echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] reader/docs 目录内容:"
+              ls -la reader/docs/
+            fi
+          else
+            echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] reader 目录不存在"
+          fi
+          echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] ==========================================="
+
       - name: Checkout Frontend from front-text
         uses: actions/checkout@v4
         with:
