@@ -2,6 +2,7 @@
 reader/docs/
 reader/index.json
 .github/file-sha-cache.json
+.cache/
 
 # 下载的文档
 txt/
