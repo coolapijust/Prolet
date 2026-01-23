@@ -39,7 +39,7 @@ jobs:
             txt
             scripts/download-files.py
             scripts/sync.py
-            reader/config.json
+            reader/
           sparse-checkout-cone-mode: false
 
       - name: Checkout Frontend from front-text
