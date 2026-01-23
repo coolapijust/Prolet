@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "prolet-tools"
+version = "1.0.0"
+description = "文档管理与静态站点生成工具"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Prolet Team"}
+]
+keywords = ["documentation", "static-site", "github"]
+
+dependencies = [
+    "markdown-it-py>=3.0.0",
+    "mammoth>=1.6.0",
+    "python-docx>=1.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.1",
+]
+
+[project.scripts]
+prolet = "prolet.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]

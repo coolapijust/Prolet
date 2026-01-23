@@ -1,0 +1,100 @@
+# Prolet Tools - 文档构建与部署工作流
+# 使用新的 Python 包架构 (src/prolet)
+
+name: Build and Deploy
+
+on:
+  # 手动触发
+  workflow_dispatch:
+    inputs:
+      skip_download:
+        description: '跳过下载，仅使用缓存重新生成'
+        required: false
+        default: 'false'
+        type: boolean
+
+  # 定时触发 (每天 UTC 0:00)
+  schedule:
+    - cron: '0 0 * * *'
+
+  # 推送到 main/master 触发
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'src/**'
+      - 'reader/config.json'
+      - '.github/workflows/build-deploy.yml'
+
+# 并发控制
+concurrency:
+  group: build-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+# 权限
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout front-text
+        uses: actions/checkout@v4
+        with:
+          repository: coolapijust/front-text
+          path: front-text
+          sparse-checkout: |
+            reader/index.html
+            reader/app.js
+            reader/css
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -q markdown-it-py mammoth python-docx
+
+      - name: Run build
+        env:
+          PROLET_ROOT: ${{ github.workspace }}
+          FRONT_TEXT_PATH: ${{ github.workspace }}/front-text
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python tools/build.py
+
+      - name: Copy front-text assets
+        run: |
+          cp -r front-text/reader/index.html reader/ 2>/dev/null || true
+          cp -r front-text/reader/app.js reader/ 2>/dev/null || true
+          cp -r front-text/reader/css reader/ 2>/dev/null || true
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: reader
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
