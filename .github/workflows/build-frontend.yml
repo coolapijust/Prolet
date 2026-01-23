@@ -4,6 +4,16 @@ on:
   workflow_run:
     workflows: ["Sync Documents"]
     types: [completed]
+  workflow_dispatch:
+    inputs:
+      redeploy_only:
+        description: '仅重新部署（跳过下载）'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
 
 permissions:
   contents: read
@@ -17,7 +27,7 @@ concurrency:
 
 jobs:
   build:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
       - name: Log Build Info
@@ -38,6 +48,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: List Available Artifacts
+        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.redeploy_only != 'true' }}
         run: |
           echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] ==========================================="
           echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] 列出可用的 artifact"
@@ -58,6 +69,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
       - name: Download Reader Artifact
+        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.redeploy_only != 'true' }}
         run: |
           echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] ==========================================="
           echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] 下载 reader artifact"
@@ -75,6 +87,14 @@ jobs:
           ls -la reader/
         env:
           GH_TOKEN: ${{ github.token }}
+
+      - name: Skip Download Message
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.redeploy_only == 'true' }}
+        run: |
+          echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] ==========================================="
+          echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] 跳过下载，仅重新部署"
+          echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] ==========================================="
+          echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] 使用现有的 reader/ 目录内容"
 
       - name: Checkout Frontend from front-text
         uses: actions/checkout@v4
