@@ -158,15 +158,15 @@ def download_file(file_item: FileItem, output_dir: Path, token: Optional[str] = 
     Returns:
         下载后的本地路径
     """
+    # 创建目标目录
+    target_path = output_dir / file_item.path
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+
     headers = {"User-Agent": "prolet-tools/1.0"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
     req = Request(file_item.download_url, headers=headers)
-
-    # 创建目标目录
-    target_path = output_dir / file_item.path
-    target_path.parent.mkdir(parents=True, exist_ok=True)
 
     with urlopen(req, timeout=60) as resp:
         content = resp.read()
@@ -177,7 +177,7 @@ def download_file(file_item: FileItem, output_dir: Path, token: Optional[str] = 
 
 def download_all(config: Config, file_list: list[FileItem], output_dir: Path) -> list[Path]:
     """
-    批量下载文件
+    批量下载文件（带 SHA 缓存机制）
 
     Args:
         config: 配置对象
@@ -185,17 +185,50 @@ def download_all(config: Config, file_list: list[FileItem], output_dir: Path) ->
         output_dir: 输出目录
 
     Returns:
-        下载的本地文件路径列表
+        下载或已缓存的本地文件路径列表
     """
     downloaded: list[Path] = []
     total = len(file_list)
+    cache_file = output_dir / "cache.json"
+    cache = {}
+
+    # 加载缓存
+    if cache_file.exists():
+        try:
+            cache = json.loads(cache_file.read_text(encoding="utf-8"))
+        except Exception as e:
+            print(f"  ⚠ 缓存读取失败: {e}")
+
+    new_cache = {}
+    skipped_count = 0
 
     for i, item in enumerate(file_list, 1):
-        print(f"[{i}/{total}] 下载: {item.path}")
+        target_path = output_dir / item.path
+        
+        # 检查是否可以跳过下载 (文件已存在且 SHA 一致)
+        if target_path.exists() and cache.get(item.path) == item.sha:
+            skipped_count += 1
+            downloaded.append(target_path)
+            new_cache[item.path] = item.sha
+            continue
+
+        if i % 50 == 0 or i == 1:
+            print(f"[{i}/{total}] 处理: {item.path}...")
+            
         try:
             path = download_file(item, output_dir, config.github_token)
             downloaded.append(path)
+            new_cache[item.path] = item.sha
         except Exception as e:
-            print(f"  ⚠ 下载失败: {e}")
+            print(f"  ⚠ 下载失败 ({item.path}): {e}")
+
+    if skipped_count > 0:
+        print(f"  ⚡ 跳过下载 (命中缓存): {skipped_count} 个文件")
+
+    # 保存新缓存
+    try:
+        cache_file.write_text(json.dumps(new_cache, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as e:
+        print(f"  ⚠ 缓存保存失败: {e}")
 
     return downloaded

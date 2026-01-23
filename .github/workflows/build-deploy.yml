@@ -65,6 +65,14 @@ jobs:
         run: |
           pip install -q markdown-it-py mammoth python-docx
 
+      - name: Cache downloaded documents
+        uses: actions/cache@v4
+        with:
+          path: .cache/downloads
+          key: ${{ runner.os }}-docs-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-docs-
+
       - name: Run build
         env:
           PROLET_ROOT: ${{ github.workspace }}
