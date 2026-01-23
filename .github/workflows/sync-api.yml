@@ -102,7 +102,7 @@ jobs:
           SYNC_ROOT_DIR: ${{ github.workspace }}
         run: |
           echo "[Sync][$(date +%Y-%m-%d\ %H:%M:%S)] 扫描并同步文件..."
-          python frontend/scripts/sync.py
+          python scripts/sync.py
           echo "[Sync][$(date +%Y-%m-%d\ %H:%M:%S)] 文件同步完成"
 
       - name: Upload Reader Artifact
