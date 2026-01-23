@@ -520,8 +520,12 @@ def main():
         root_dir = Path(__file__).parent.parent
     
     source_dir_name = get_source_dir()
+    log_info(f'配置中的 source_dir_name: {source_dir_name}', 'Sync')
     if not source_dir_name:
         txt_dir = root_dir / 'txt'
+        log_info(f'检查 txt 目录: {txt_dir}', 'Sync')
+        log_info(f'txt 目录是否存在: {txt_dir.exists()}', 'Sync')
+        log_info(f'txt 目录是否为目录: {txt_dir.is_dir()}', 'Sync')
         if txt_dir.exists() and txt_dir.is_dir():
             source_dir_name = 'txt'
             log_info(f'自动检测到源目录: txt/', 'Sync')
@@ -541,6 +545,10 @@ def main():
     log_info(f'索引文件: {index_file}', 'Sync')
     log_info(f'GitHub 仓库: {github_repo}', 'Sync')
     log_info(f'时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}', 'Sync')
+    
+    log_info(f'列出根目录内容:', 'Sync')
+    for item in root_dir.iterdir():
+        log_info(f'  - {item.name} ({"目录" if item.is_dir() else "文件"})', 'Sync')
     
     if not source_dir.exists():
         log_error(f'源目录不存在: {source_dir}', 'Sync')
