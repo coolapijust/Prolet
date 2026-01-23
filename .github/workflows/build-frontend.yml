@@ -46,6 +46,7 @@ jobs:
           sparse-checkout: |
             txt
             reader/config.json
+            scripts/sync.py
           sparse-checkout-cone-mode: false
 
       - name: Checkout Frontend from front-text
@@ -57,7 +58,6 @@ jobs:
             reader/css
             reader/app.js
             reader/index.html
-            scripts/sync.py
           sparse-checkout-cone-mode: false
 
       - name: Setup Python
@@ -80,7 +80,7 @@ jobs:
           echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] SYNC_ROOT_DIR: $SYNC_ROOT_DIR"
           echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] 当前目录: $(pwd)"
           echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] ==========================================="
-          python frontend/scripts/sync.py
+          python scripts/sync.py
           echo "[Build][$(date +%Y-%m-%d\ %H:%M:%S)] 文档生成完成"
 
       - name: Merge Frontend
