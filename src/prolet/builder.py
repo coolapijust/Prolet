@@ -137,25 +137,40 @@ def run_build(config: Config, output_dir: Optional[Path] = None) -> None:
     # 2. 下载文件
     print("\n[2/4] 下载文件...")
     temp_dir.mkdir(parents=True, exist_ok=True)
-    downloaded = download_all(config, file_list, temp_dir)
+    downloaded, download_failed = download_all(config, file_list, temp_dir)
     print(f"  下载完成: {len(downloaded)} 个文件")
 
     # 3. 转换文件
     print("\n[3/4] 转换文件...")
     docs_dir.mkdir(parents=True, exist_ok=True)
+    convert_failed: list[str] = []
 
-    for i, local_path in enumerate(downloaded, 1):
+    def _convert_one(local_path: Path):
         # 计算相对路径
         rel_path = local_path.relative_to(temp_dir)
         html_path = docs_dir / rel_path.with_suffix(".html")
         html_path.parent.mkdir(parents=True, exist_ok=True)
-
-        print(f"  [{i}/{len(downloaded)}] 转换: {rel_path}")
+        
         try:
             html_content = convert_file(local_path)
             html_path.write_text(html_content, encoding="utf-8")
+            return True, str(rel_path)
         except Exception as e:
-            print(f"    ⚠ 转换失败: {e}")
+            return False, f"{rel_path}: {e}"
+
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [executor.submit(_convert_one, path) for path in downloaded]
+        completed = 0
+        for future in as_completed(futures):
+            completed += 1
+            success, info = future.result()
+            if not success:
+                convert_failed.append(info)
+                print(f"    ⚠ 转换失败: {info}")
+            if completed % 500 == 0 or completed == len(downloaded):
+                print(f"  [{completed}/{len(downloaded)}] 转换完成")
 
     # 4. 生成索引
     print("\n[4/4] 生成索引...")
@@ -184,6 +199,18 @@ def run_build(config: Config, output_dir: Optional[Path] = None) -> None:
                         shutil.copy2(src, dst)
                     print(f"  复制: {item}")
 
+    # 输出失败文件清单
+    all_failed = download_failed + convert_failed
+    if all_failed:
+        print("\n" + "=" * 60)
+        print(f"⚠ 失败文件清单 ({len(all_failed)} 个):")
+        print("=" * 60)
+        for f in all_failed:
+            print(f"  - {f}")
+        print("=" * 60)
+
     print("\n" + "=" * 60)
     print("✓ 构建完成!")
+    if all_failed:
+        print(f"  (有 {len(all_failed)} 个文件处理失败)")
     print("=" * 60)

@@ -175,9 +175,11 @@ def download_file(file_item: FileItem, output_dir: Path, token: Optional[str] = 
     return target_path
 
 
-def download_all(config: Config, file_list: list[FileItem], output_dir: Path) -> list[Path]:
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+def download_all(config: Config, file_list: list[FileItem], output_dir: Path) -> tuple[list[Path], list[str]]:
     """
-    批量下载文件（带 SHA 缓存机制）
+    批量下载文件（带 SHA 缓存机制和多线程加速）
 
     Args:
         config: 配置对象
@@ -185,9 +187,10 @@ def download_all(config: Config, file_list: list[FileItem], output_dir: Path) ->
         output_dir: 输出目录
 
     Returns:
-        下载或已缓存的本地文件路径列表
+        (下载成功的本地文件路径列表, 下载失败的文件路径列表)
     """
-    downloaded: list[Path] = []
+    downloaded_paths_map: dict[str, Path] = {}
+    failed_files: list[str] = []
     total = len(file_list)
     cache_file = output_dir / "cache.json"
     cache = {}
@@ -199,31 +202,48 @@ def download_all(config: Config, file_list: list[FileItem], output_dir: Path) ->
         except Exception as e:
             print(f"  ⚠ 缓存读取失败: {e}")
 
+    to_download: list[FileItem] = []
     new_cache = {}
     skipped_count = 0
 
-    for i, item in enumerate(file_list, 1):
+    # 预筛选：区分缓存文件和需要下载的文件
+    for item in file_list:
         target_path = output_dir / item.path
-        
-        # 检查是否可以跳过下载 (文件已存在且 SHA 一致)
         if target_path.exists() and cache.get(item.path) == item.sha:
             skipped_count += 1
-            downloaded.append(target_path)
+            downloaded_paths_map[item.path] = target_path
             new_cache[item.path] = item.sha
-            continue
-
-        if i % 50 == 0 or i == 1:
-            print(f"[{i}/{total}] 处理: {item.path}...")
-            
-        try:
-            path = download_file(item, output_dir, config.github_token)
-            downloaded.append(path)
-            new_cache[item.path] = item.sha
-        except Exception as e:
-            print(f"  ⚠ 下载失败 ({item.path}): {e}")
+        else:
+            to_download.append(item)
 
     if skipped_count > 0:
         print(f"  ⚡ 跳过下载 (命中缓存): {skipped_count} 个文件")
+
+    if not to_download:
+        return [downloaded_paths_map[item.path] for item in file_list], []
+
+    print(f"  🚀 开始并行下载 {len(to_download)} 个新文件 (线程数: 10)...")
+    
+    # 使用线程池并行下载
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        future_to_item = {
+            executor.submit(download_file, item, output_dir, config.github_token): item 
+            for item in to_download
+        }
+        
+        completed = 0
+        for future in as_completed(future_to_item):
+            item = future_to_item[future]
+            completed += 1
+            try:
+                path = future.result()
+                downloaded_paths_map[item.path] = path
+                new_cache[item.path] = item.sha
+                if completed % 100 == 0 or completed == len(to_download):
+                    print(f"  [{completed}/{len(to_download)}] 下载完成: {item.path}")
+            except Exception as e:
+                failed_files.append(f"{item.path} ({e})")
+                print(f"  ⚠ 下载失败 ({item.path}): {e}")
 
     # 保存新缓存
     try:
@@ -231,4 +251,6 @@ def download_all(config: Config, file_list: list[FileItem], output_dir: Path) ->
     except Exception as e:
         print(f"  ⚠ 缓存保存失败: {e}")
 
-    return downloaded
+    # 按照原始列表顺序返回路径
+    successful = [downloaded_paths_map.get(item.path) for item in file_list if item.path in downloaded_paths_map]
+    return successful, failed_files
